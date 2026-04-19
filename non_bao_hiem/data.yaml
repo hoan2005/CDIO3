@@ -1,0 +1,15 @@
+names:
+- Hardhat
+- Mask
+- NO-Hardhat
+- NO-Mask
+- NO-Safety Vest
+- Person
+- Safety Cone
+- Safety Vest
+- machinery
+- vehicle
+nc: 10
+test: D:/project/CDIO/dataset\test
+train: D:/project/CDIO/dataset\train
+val: D:/project/CDIO/dataset\valid

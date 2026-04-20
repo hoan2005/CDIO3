@@ -1,0 +1,10 @@
+path: D:/project/CDIO/dataset
+
+train: train/images
+val: valid/images
+
+nc: 2
+
+names:
+  - with_helmet
+  - without_helmet

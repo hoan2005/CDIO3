@@ -1,4 +1,4 @@
-path: D:/project/CDIO/dataset
+path: C:/Users/souse/CDIO3/dataset
 
 train: train/images
 val: valid/images
@@ -6,5 +6,5 @@ val: valid/images
 nc: 2
 
 names:
-  - with_helmet
-  - without_helmet
+  0: with_helmet
+  1: without_helmet

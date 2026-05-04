@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Giám sát Vi phạm Giao thông AI</title>
+    <style>
+        :root {
+            --primary-dark: #2c3e50;
+            --accent-red: #e74c3c;
+            --accent-green: #27ae60;
+            --bg-light: #f4f7f6;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: var(--bg-light); 
+            margin: 0; 
+            padding: 20px; 
+            color: #333;
+        }
+
+        .header { 
+            background: var(--primary-dark); 
+            color: white; 
+            padding: 1.5rem; 
+            border-radius: 12px; 
+            margin-bottom: 2rem; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .upload-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            display: inline-block;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .video-container { 
+            display: flex; 
+            justify-content: center; 
+            gap: 25px; 
+            flex-wrap: wrap; 
+            margin-bottom: 2.5rem;
+        }
+
+        .video-box { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+            width: 46%; 
+            min-width: 420px; 
+        }
+
+        video { 
+            width: 100%; 
+            border-radius: 8px; 
+            border: 2px solid #222;
+            background: #000;
+        }
+
+        .status-tag { 
+            display: inline-block; 
+            padding: 6px 16px; 
+            border-radius: 20px; 
+            margin-bottom: 12px; 
+            font-weight: 700; 
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .tag-original { background: #e3f2fd; color: #1976d2; }
+        .tag-processed { background: #fff1f0; color: #f5222d; }
+
+        /* Bảng vi phạm */
+        .log-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 1100px;
+            margin: 0 auto 50px auto;
+            text-align: left;
+        }
+
+        .log-section h2 { 
+            color: var(--accent-red); 
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px;
+        }
+
+        th { 
+            background-color: #f8f9fa; 
+            padding: 15px; 
+            text-align: center; 
+            border-bottom: 2px solid #dee2e6;
+            color: var(--primary-dark);
+        }
+
+        td { 
+            padding: 15px; 
+            border-bottom: 1px solid #eee; 
+            text-align: center;
+        }
+
+        tr:hover { background-color: #fffafa; }
+
+        .violation-badge {
+            background: var(--accent-red);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        .no-violation {
+            text-align: center;
+            color: var(--accent-green);
+            padding: 2rem;
+            font-weight: bold;
+        }
+
+        .btn-upload {
+            background: var(--accent-green);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .btn-upload:hover { background: #1e8449; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Hệ thống Phân tích & Trích xuất Vi phạm Giao thông</h1>
+</div>
+
+<div class="upload-section">
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <input type="file" name="video_file" accept="video/*" required style="margin-bottom: 10px;">
+        <br>
+        <button type="submit" class="btn-upload">Bắt đầu Phân tích AI</button>
+    </form>
+    <p><small>* Lưu ý: Quá trình xử lý frame có thể mất thời gian tùy thuộc độ dài video.</small></p>
+</div>
+
+{% if processed %}
+<div class="video-container">
+    <!-- Video Gốc -->
+    <div class="video-box">
+        <span class="status-tag tag-original">Video Gốc (Camera)</span>
+        <video id="vOrig" controls>
+            <source src="{{ url_for('serve_video', filename=original) }}" type="video/mp4">
+        </video>
+    </div>
+
+    <!-- Video Kết quả -->
+    <div class="video-box">
+        <span class="status-tag tag-processed">Kết quả Phân tích (YOLOv8)</span>
+        <video id="vProc" controls>
+            <source src="{{ url_for('serve_video', filename=processed) }}" type="video/mp4">
+        </video>
+    </div>
+</div>
+
+<div class="log-section">
+    <h2>📋 Nhật ký vi phạm trích xuất</h2>
+    
+    {% if violations %}
+    <table>
+        <thead>
+            <tr>
+                <th>STT</th>
+                <th>Track ID</th>
+                <th>Thời điểm</th>
+                <th>Địa điểm</th>
+                <th>Hành vi vi phạm</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in violations %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td><strong>#{{ v.id }}</strong></td>
+                <td>{{ v.time }}</td>
+                <td>{{ v.location }}</td>
+                <td><span class="violation-badge">{{ v.type }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="no-violation">
+        ✅ Không phát hiện hành vi vượt đèn đỏ trong đoạn video này.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    const vOrig = document.getElementById('vOrig');
+    const vProc = document.getElementById('vProc');
+
+    // Đồng bộ Play/Pause
+    vOrig.addEventListener('play', () => vProc.play());
+    vOrig.addEventListener('pause', () => vProc.pause());
+
+    // Đồng bộ Tua video
+    vOrig.addEventListener('seeking', () => {
+        vProc.currentTime = vOrig.currentTime;
+    });
+
+    // Đồng bộ Tốc độ phát
+    vOrig.addEventListener('ratechange', () => {
+        vProc.playbackRate = vOrig.playbackRate;
+    });
+</script>
+{% endif %}
+
+</body>
+</html>

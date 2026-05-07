@@ -18,7 +18,47 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Tải model YOLOv8
 model = YOLO("yolov8s.pt")
+def calculate_ioa(box_person, box_motorbike):
+    """
+    Tính toán IoA: Diện tích giao nhau chia cho diện tích của Box Người.
+    box_person: [x1, y1, x2, y2]
+    box_motorbike: [x1, y1, x2, y2]
+    """
+    # 1. Xác định tọa độ của vùng giao nhau (Intersection)
+    x_left = max(box_person[0], box_motorbike[0])
+    y_top = max(box_person[1], box_motorbike[1])
+    x_right = min(box_person[2], box_motorbike[2])
+    y_bottom = min(box_person[3], box_motorbike[3])
 
+    # 2. Tính diện tích vùng giao nhau
+    # Nếu x_right < x_left hoặc y_bottom < y_top thì diện tích giao nhau bằng 0
+    intersection_area = max(0, x_right - x_left) * max(0, y_bottom - y_top)
+
+    # 3. Tính diện tích của Box Người (Area of Person)
+    person_area = (box_person[2] - box_person[0]) * (box_person[3] - box_person[1])
+
+    # 4. Tránh lỗi chia cho 0 nếu box người không hợp lệ
+    if person_area <= 0:
+        return 0
+
+    # 5. Tính tỷ lệ IoA
+    ioa = intersection_area / person_area
+    
+    return ioa
+def get_combined_box(box_person, box_motorbike):
+    """
+    Tạo một box mới bao quanh cả người và xe máy.
+    Định dạng box đầu vào: [x1, y1, x2, y2]
+    """
+    # Lấy giá trị nhỏ nhất của x1 và y1 (góc trên bên trái)
+    x1_new = min(box_person[0], box_motorbike[0])
+    y1_new = min(box_person[1], box_motorbike[1])
+    
+    # Lấy giá trị lớn nhất của x2 và y2 (góc dưới bên phải)
+    x2_new = max(box_person[2], box_motorbike[2])
+    y2_new = max(box_person[3], box_motorbike[3])
+    
+    return [x1_new, y1_new, x2_new, y2_new]
 # --- HÀM LOGIC HÌNH HỌC (f(x,y) = (x2-x1)(y-y1) - (y2-y1)(x-x1)) ---
 def check_side(point, line_pts):
     x, y = point
@@ -116,7 +156,8 @@ def upload_and_process():
 
         # Chạy Tracking
         results = model.track(frame, persist=True, verbose=False,tracker="custom_bytetrack.yaml")
-        
+        box_nguoi=[]
+        box_xe=[]
         if results[0].boxes.id is not None:
             boxes = results[0].boxes
             for box in boxes:
@@ -132,11 +173,14 @@ def upload_and_process():
                         traffic_light_color = detect_traffic_light_color_kmeans(frame[y1:y2, x1:x2])
                         cv2.putText(frame, traffic_light_color, (x1, y1-10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
-                
+                if cls ==0:
+                    box_nguoi.append([x1, y1, x2, y2])
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), thickness=2)
                 # 2. Kiểm tra vi phạm
                 if cls in [2, 3, 5, 7]:
+                    if cls ==3:
+                        box_xe.append([x1, y1, x2, y2])
                     current_side = check_side((cx, cy), line_pts)
-
                     if track_id in history:
                         prev_side = history[track_id]
                         # Logic đổi dấu phương trình đường thẳng
@@ -154,9 +198,18 @@ def upload_and_process():
                     
                     # Vẽ Box và ID
                     color = (0, 0, 255) if track_id in count_his else (0, 255, 0)
-                    label = "VI PHAM" if track_id in count_his else f"ID:{track_id}"
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    label = "VI PHAM DEN" if track_id in count_his else f"ID:{track_id}"
                     cv2.putText(frame, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        for i in box_nguoi:
+            for j in box_xe:
+                ioa=calculate_ioa(i,j)
+                if ioa>0.7:
+                    x1_new, y1_new, x2_new, y2_new=get_combined_box(i,j)
+                    roi_combined = frame[int(y1_new):int(y2_new), int(x1_new):int(x2_new)]
+                    
+                    
+
 
         # Vẽ Overlay tĩnh
         cv2.line(frame, tuple(line_pts[0]), tuple(line_pts[1]), (255, 255, 0), 3)

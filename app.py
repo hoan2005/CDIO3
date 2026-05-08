@@ -18,6 +18,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Tải model YOLOv8
 model = YOLO("yolov8s.pt")
+model_bh=YOLO(r"runs\detect\train5\weights\best.pt")
 def calculate_ioa(box_person, box_motorbike):
     """
     Tính toán IoA: Diện tích giao nhau chia cho diện tích của Box Người.
@@ -143,6 +144,7 @@ def upload_and_process():
     count_his = set()
     traffic_light_color = "UNKNOWN"
     frame_count = 0
+    helmet_violation_ids = set()
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -174,12 +176,12 @@ def upload_and_process():
                         cv2.putText(frame, traffic_light_color, (x1, y1-10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
                 if cls ==0:
-                    box_nguoi.append([x1, y1, x2, y2])
+                    box_nguoi.append({"box":[x1, y1, x2, y2],"id":track_id})
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), thickness=2)
                 # 2. Kiểm tra vi phạm
                 if cls in [2, 3, 5, 7]:
                     if cls ==3:
-                        box_xe.append([x1, y1, x2, y2])
+                        box_xe.append({"box":[x1, y1, x2, y2],"id":track_id})
                     current_side = check_side((cx, cy), line_pts)
                     if track_id in history:
                         prev_side = history[track_id]
@@ -201,27 +203,44 @@ def upload_and_process():
                     label = "VI PHAM DEN" if track_id in count_his else f"ID:{track_id}"
                     cv2.putText(frame, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        if frame_count % 10==0:
-            for i in box_nguoi:
-                for j in box_xe:
-                    ioa=calculate_ioa(i,j)
-                    if ioa>0.7:
-                        x1_new, y1_new, x2_new, y2_new=get_combined_box(i,j)
-                        roi_combined = frame[int(y1_new):int(y2_new), int(x1_new):int(x2_new)]
-                        model_bh=YOLO(r"runs\detect\train5\weights\best.pt")
-                        results = model_bh.predict(source=roi_combined, save=False, conf=0.6)
-                        for result in results:
+        if frame_count % 5 == 0:
+            for p in box_nguoi:
+                for v in box_xe:
+                    ioa = calculate_ioa(p["box"], v["box"])
+                    print(ioa)
+                    # Nếu người đang ngồi trên xe (IoA > 0.5)
+                    if ioa > 0.2:
+                        # Tránh kiểm tra lại nếu xe này đã bị ghi nhận vi phạm mũ bảo hiểm
+                        if v["id"] in helmet_violation_ids:
+                            continue
+                        
+                        x1_new, y1_new, x2_new, y2_new = get_combined_box(p["box"], v["box"])
+                        # Đảm bảo tọa độ không âm và nằm trong frame
+                        roi_combined = frame[max(0, int(y1_new)):int(y2_new), max(0, int(x1_new)):int(x2_new)]
+                        
+                        if roi_combined.size == 0: continue
+
+                        # Dự đoán mũ bảo hiểm
+                        results_bh = model_bh.predict(source=roi_combined, save=False, conf=0.6, verbose=False)
+                        
+                        # Logic: Giả sử model_bh trả về các box là "mũ bảo hiểm"
+                        # Nếu KHÔNG tìm thấy box nào trong vùng ROI này thì coi như vi phạm
+                        for result in results_bh:
                             boxes = result.boxes  # Các bounding box tìm thấy
                             for box in boxes:
                                 # Tọa độ [x1, y1, x2, y2]
+                                cls = int(box.cls[0])
+                                print(cls)
                                 x1,y1,x2,y2 = box.xyxy[0].tolist()
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                                violation_list.append({
-                                    "id": 7,
-                                    "time": timestamp,
-                                    "location": location_name,
-                                    "type": "Không Đội mũ bảo Hiểm"
-                                })
+                                if cls==1:
+                                    helmet_violation_ids.add(v["id"])
+                                    violation_list.append({
+                                        "id": v["id"],
+                                        "time": timestamp,
+                                        "location": location_name,
+                                        "type": "Không đội mũ bảo hiểm"
+                                    })
+
 
         # Vẽ Overlay tĩnh
         cv2.line(frame, tuple(line_pts[0]), tuple(line_pts[1]), (255, 255, 0), 3)
@@ -236,9 +255,9 @@ def upload_and_process():
 
     # Trả về trang HTML cùng với dữ liệu vi phạm
     return render_template('index.html', 
-                           original=filename, 
-                           processed=output_filename, 
-                           violations=violation_list)
+                            original=filename, 
+                            processed=output_filename, 
+                            violations=violation_list)
 
 @app.route('/uploads/<filename>')
 def serve_video(filename):

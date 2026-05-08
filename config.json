@@ -5,8 +5,8 @@
       "location": "Nga tu Phan Chu Trinh - Hung Vuong"
     },
     "cam2.mp4": {
-      "traffic_light_box": [630,400,660,480],
-      "stop_line": [[0, 670], [530, 680]],
+      "traffic_light_box": [0,0,0,0],
+      "stop_line": [[0, 0], [0,0]],
       "location": "Nga tu Phan Chu Trinh - Hung Vuong"
     }
   }

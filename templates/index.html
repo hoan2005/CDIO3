@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrafficAI — Hệ thống Phân tích Vi phạm Giao thông</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0a0b0f;
+  --surface:   #11131a;
+  --surface2:  #181b26;
+  --border:    #242736;
+  --border2:   #2e3347;
+  --accent:    #e63950;
+  --accent2:   #ff6b35;
+  --green:     #22d18b;
+  --yellow:    #f5c842;
+  --text:      #e8eaf0;
+  --muted:     #606880;
+  --muted2:    #9198b0;
+  --mono:      'Space Mono', monospace;
+  --sans:      'Syne', sans-serif;
+  --radius:    10px;
+}
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+ 
+/* ── SCROLLBAR ───────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+ 
+/* ── HEADER ──────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 36px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: rgba(10,11,15,0.92);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+}
+.logo {
+  width: 36px; height: 36px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo svg { width: 20px; height: 20px; fill: white; }
+.header h1 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.header h1 span { color: var(--accent); }
+.badge {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  color: var(--muted2);
+}
+ 
+/* ── MAIN LAYOUT ─────────────────────────────────── */
+main { max-width: 1280px; margin: 0 auto; padding: 36px 24px 80px; }
+ 
+/* ── HERO / UPLOAD ZONE ──────────────────────────── */
+.upload-card {
+  border: 2px dashed var(--border2);
+  border-radius: 16px;
+  padding: 48px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .25s, background .25s;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  margin-bottom: 32px;
+}
+.upload-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(230,57,80,.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+.upload-card:hover, .upload-card.drag-over {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.upload-icon {
+  width: 64px; height: 64px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px;
+  transition: transform .3s;
+}
+.upload-card:hover .upload-icon { transform: translateY(-4px); }
+.upload-icon svg { width: 28px; height: 28px; stroke: var(--accent); fill: none; stroke-width: 1.8; }
+.upload-card h2 { font-size: 1.5rem; font-weight: 800; margin-bottom: 8px; }
+.upload-card p { color: var(--muted2); font-size: 0.9rem; margin-bottom: 24px; }
+#file-input { display: none; }
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, transform .15s, box-shadow .2s;
+  letter-spacing: 0.03em;
+}
+.btn-primary:hover { background: #c42e42; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(230,57,80,.35); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { background: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+#selected-file {
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--green);
+  display: none;
+}
+ 
+/* ── PROGRESS ────────────────────────────────────── */
+#progress-section {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 32px;
+}
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.progress-header h3 { font-size: 1rem; font-weight: 600; }
+.progress-pct {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.progress-bar-wrap {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px;
+  transition: width .4s ease;
+  width: 0%;
+}
+.progress-steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.step-pill {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  transition: all .3s;
+}
+.step-pill.active { border-color: var(--accent); color: var(--accent); background: rgba(230,57,80,.1); }
+.step-pill.done { border-color: var(--green); color: var(--green); background: rgba(34,209,139,.1); }
+#frames-info { font-family: var(--mono); font-size: 0.75rem; color: var(--muted2); margin-top: 10px; }
+ 
+/* ── RESULTS ─────────────────────────────────────── */
+#results-section { display: none; }
+ 
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+@media (max-width: 900px) { .results-grid { grid-template-columns: 1fr; } }
+ 
+.video-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.video-card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vid-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.vid-dot.original  { background: var(--muted2); }
+.vid-dot.processed { background: var(--accent); }
+.video-card-header span { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted2); }
+.video-card video {
+  width: 100%;
+  display: block;
+  background: #000;
+  max-height: 360px;
+  object-fit: contain;
+}
+.video-placeholder {
+  width: 100%;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+ 
+/* ── VIOLATION TABLE ─────────────────────────────── */
+.table-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.table-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.table-header h2 { font-size: 1rem; font-weight: 700; }
+.count-badge {
+  background: var(--accent);
+  color: white;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+thead th {
+  background: var(--surface2);
+  padding: 12px 20px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+tbody td {
+  padding: 14px 20px;
+  vertical-align: middle;
+}
+.td-id {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted2);
+}
+.td-time {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.td-loc { color: var(--muted2); font-size: 0.82rem; }
+.vio-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.vio-tag.red-light  { background: rgba(230,57,80,.15); color: var(--accent); border: 1px solid rgba(230,57,80,.3); }
+.vio-tag.no-helmet  { background: rgba(245,200,66,.12); color: var(--yellow); border: 1px solid rgba(245,200,66,.3); }
+.plate-thumb {
+  width: 80px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--border2);
+  cursor: pointer;
+  transition: transform .2s, box-shadow .2s;
+}
+.plate-thumb:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+.no-plate { color: var(--muted); font-family: var(--mono); font-size: 0.75rem; }
+ 
+/* ── EMPTY STATE ─────────────────────────────────── */
+.empty-state {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted2);
+}
+.empty-state svg { width: 40px; height: 40px; stroke: var(--green); fill: none; stroke-width: 1.5; margin-bottom: 12px; }
+.empty-state p { font-size: 0.9rem; }
+.empty-state strong { color: var(--green); }
+ 
+/* ── MODAL ───────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.85);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal-img {
+  max-width: 90vw;
+  max-height: 80vh;
+  border-radius: 10px;
+  border: 2px solid var(--border2);
+  cursor: zoom-out;
+}
+ 
+/* ── TOAST ───────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 0.85rem;
+  color: var(--text);
+  z-index: 200;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: all .3s;
+  pointer-events: none;
+  max-width: 320px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { border-color: var(--accent); color: var(--accent); }
+ 
+/* ── STATS ROW ───────────────────────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+.stat-label { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted2); margin-bottom: 8px; }
+.stat-value { font-size: 1.8rem; font-weight: 800; }
+.stat-value.red { color: var(--accent); }
+.stat-value.yellow { color: var(--yellow); }
+.stat-value.green { color: var(--green); }
+ 
+/* ── ANIMATIONS ──────────────────────────────────── */
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.animate-in { animation: fadeInUp .4s ease both; }
+</style>
+</head>
+<body>
+ 
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+  </div>
+  <h1>Traffic<span>AI</span></h1>
+  <span class="badge">YOLOv8 · CV Engine</span>
+</header>
+ 
+<!-- MAIN -->
+<main>
+ 
+  <!-- UPLOAD CARD -->
+  <div class="upload-card" id="drop-zone">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <h2>Tải video lên để phân tích</h2>
+    <p>Kéo thả hoặc nhấn chọn file · Hỗ trợ MP4, AVI, MOV, MKV</p>
+    <input type="file" id="file-input" accept="video/*">
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Chọn Video</button>
+    <div id="selected-file"></div>
+  </div>
+ 
+  <!-- PROGRESS -->
+  <div id="progress-section">
+    <div class="progress-header">
+      <h3>🔍 Đang phân tích video bằng AI…</h3>
+      <span class="progress-pct" id="pct-text">0%</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="bar-fill"></div>
+    </div>
+    <div id="frames-info">Khởi tạo…</div>
+    <div class="progress-steps" style="margin-top:14px">
+      <span class="step-pill" id="step-upload">Upload</span>
+      <span class="step-pill" id="step-detect">Nhận diện đối tượng</span>
+      <span class="step-pill" id="step-track">Tracking</span>
+      <span class="step-pill" id="step-light">Phân tích đèn</span>
+      <span class="step-pill" id="step-helmet">Kiểm tra MBH</span>
+      <span class="step-pill" id="step-plate">Trích xuất hình ảnh vi phạm</span>
+      <span class="step-pill" id="step-render">Xuất kết quả</span>
+    </div>
+  </div>
+ 
+  <!-- RESULTS -->
+  <div id="results-section">
+ 
+    <!-- STATS -->
+    <div class="stats-row animate-in" id="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Tổng vi phạm</div>
+        <div class="stat-value red" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Vượt đèn đỏ</div>
+        <div class="stat-value yellow" id="stat-red">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Không đội MBH</div>
+        <div class="stat-value green" id="stat-helmet">0</div>
+      </div>
+    </div>
+ 
+    <!-- VIDEO + ORIGINAL -->
+    <div class="results-grid animate-in">
+      <div class="video-card">
+        <div class="video-card-header">
+          <div class="vid-dot original"></div>
+          <span>Video gốc</span>
+        </div>
+        <video id="vid-original" controls>
+          <source id="src-original" src="" type="video/mp4">
+        </video>
+      </div>
+      <div class="video-card">
+        <div class="video-card-header">
+          <div class="vid-dot processed"></div>
+          <span>Kết quả AI phân tích</span>
+        </div>
+        <video id="vid-processed" controls>
+          <source id="src-processed" src="" type="video/mp4">
+        </video>
+      </div>
+    </div>
+ 
+    <!-- VIOLATION TABLE -->
+    <div class="table-section animate-in">
+      <div class="table-header">
+        <h2>Nhật ký vi phạm</h2>
+        <span class="count-badge" id="vio-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>STT</th>
+              <th>Track ID</th>
+              <th>Thời gian</th>
+              <th>Địa điểm</th>
+              <th>Loại vi phạm</th>
+              <th>Bằng chứng</th>
+            </tr>
+          </thead>
+          <tbody id="vio-tbody"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state" style="display:none">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          <p><strong>Không phát hiện vi phạm</strong> trong video này.</p>
+        </div>
+      </div>
+    </div>
+ 
+  </div><!-- end results-section -->
+</main>
+ 
+<!-- IMAGE MODAL -->
+<div class="modal-overlay" id="img-modal" onclick="closeModal()">
+  <img class="modal-img" id="modal-img" src="" alt="hình ảnh vi phạm xe">
+</div>
+ 
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+ 
+<script>
+/* ── State ────────────────────────────────────────── */
+let currentJobId     = null;
+let pollInterval     = null;
+let uploadedFile     = null;
+let uploadedVideoUrl = null;
+ 
+/* ── Upload zone drag-drop ────────────────────────── */
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+ 
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('video/')) handleFile(f);
+  else showToast('Vui lòng chọn file video hợp lệ', true);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+ 
+function handleFile(file) {
+  uploadedFile = file;
+  const sel = document.getElementById('selected-file');
+  sel.style.display = 'block';
+  sel.textContent = `✓  ${file.name}  (${(file.size/1024/1024).toFixed(1)} MB)`;
+  uploadVideo(file);
+}
+ 
+/* ── Reset toàn bộ UI về trạng thái ban đầu ─────── */
+function resetUI() {
+  // Dừng polling cũ nếu đang chạy
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+ 
+  // Reset progress bar
+  document.getElementById('bar-fill').style.width  = '0%';
+  document.getElementById('pct-text').textContent  = '0%';
+  document.getElementById('frames-info').textContent = 'Khởi tạo…';
+ 
+  // Reset tất cả step pills về trạng thái mặc định
+  ['step-upload','step-detect','step-track','step-light',
+   'step-helmet','step-plate','step-render'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('active', 'done'); }
+  });
+ 
+  // Reset stats
+  ['stat-total','stat-red','stat-helmet'].forEach(id => {
+    document.getElementById(id).textContent = '0';
+  });
+  document.getElementById('vio-count').textContent = '0';
+ 
+  // Reset bảng vi phạm
+  document.getElementById('vio-tbody').innerHTML = '';
+  document.getElementById('empty-state').style.display = 'none';
+ 
+  // Reset video
+  ['src-original','src-processed'].forEach(id => {
+    document.getElementById(id).src = '';
+  });
+  ['vid-original','vid-processed'].forEach(id => {
+    document.getElementById(id).load();
+  });
+ 
+  currentJobId = null;
+}
+ 
+/* ── Upload & Start ──────────────────────────────── */
+async function uploadVideo(file) {
+  resetUI();
+ 
+  // Show progress section
+  document.getElementById('progress-section').style.display = 'block';
+  document.getElementById('results-section').style.display  = 'none';
+  stepDone('step-upload');
+ 
+  // Preview original video
+  uploadedVideoUrl = URL.createObjectURL(file);
+ 
+  const formData = new FormData();
+  formData.append('video_file', file);
+ 
+  try {
+    const res  = await fetch('/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    currentJobId = data.job_id;
+    startPolling();
+  } catch (err) {
+    showToast('Lỗi kết nối server', true);
+  }
+}
+ 
+/* ── Polling ─────────────────────────────────────── */
+function startPolling() {
+  stepActive('step-detect');
+  pollInterval = setInterval(pollStatus, 1200);
+}
+ 
+async function pollStatus() {
+  if (!currentJobId) return;
+  try {
+    const res  = await fetch(`/status/${currentJobId}`);
+    const data = await res.json();
+ 
+    const pct = data.progress || 0;
+    document.getElementById('bar-fill').style.width = pct + '%';
+    document.getElementById('pct-text').textContent  = pct + '%';
+    document.getElementById('frames-info').textContent =
+      `Frame: ${data.frames_done} / ${data.frames_total}`;
+ 
+    // Animate steps based on progress
+    if (pct > 5)  stepDone('step-detect');
+    if (pct > 20) { stepDone('step-track');  stepActive('step-track'); }
+    if (pct > 35) { stepDone('step-track');  stepActive('step-light'); }
+    if (pct > 55) { stepDone('step-light');  stepActive('step-helmet'); }
+    if (pct > 70) { stepDone('step-helmet'); stepActive('step-plate'); }
+    if (pct > 88) { stepDone('step-plate');  stepActive('step-render'); }
+ 
+    if (data.status === 'done') {
+      clearInterval(pollInterval);
+      stepDone('step-render');
+      document.getElementById('bar-fill').style.width = '100%';
+      document.getElementById('pct-text').textContent  = '100%';
+      await loadResults();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+ 
+/* ── Load & Render Results ───────────────────────── */
+async function loadResults() {
+  const res  = await fetch(`/result/${currentJobId}`);
+  const data = await res.json();
+ 
+  // Set videos
+  document.getElementById('src-original').src  = uploadedVideoUrl;
+  document.getElementById('src-processed').src = data.video_url;
+  document.getElementById('vid-original').load();
+  document.getElementById('vid-processed').load();
+ 
+  // Sync playback
+  const vO = document.getElementById('vid-original');
+  const vP = document.getElementById('vid-processed');
+  vO.addEventListener('play',       () => vP.play());
+  vO.addEventListener('pause',      () => vP.pause());
+  vO.addEventListener('seeking',    () => { vP.currentTime = vO.currentTime; });
+  vO.addEventListener('ratechange', () => { vP.playbackRate = vO.playbackRate; });
+ 
+  // Stats
+  const violations = data.violations || [];
+  const redCount    = violations.filter(v => v.type.includes('đèn')).length;
+  const helmetCount = violations.filter(v => v.type.includes('mũ')).length;
+  document.getElementById('stat-total').textContent  = violations.length;
+  document.getElementById('stat-red').textContent    = redCount;
+  document.getElementById('stat-helmet').textContent = helmetCount;
+  document.getElementById('vio-count').textContent   = violations.length;
+ 
+  // Table
+  const tbody = document.getElementById('vio-tbody');
+  tbody.innerHTML = '';
+  if (violations.length === 0) {
+    document.getElementById('empty-state').style.display = 'block';
+  } else {
+    document.getElementById('empty-state').style.display = 'none';
+    violations.forEach((v, i) => {
+      const isRed = v.type.includes('đèn');
+      const tagClass = isRed ? 'red-light' : 'no-helmet';
+      const icon     = isRed ? '🚦' : '⛑️';
+      const plateHtml = v.plate_b64
+        ? `<img class="plate-thumb" src="data:image/jpeg;base64,${v.plate_b64}" alt="hình ảnh vi phạm" onclick="openModal('${v.plate_b64}')">`
+        : `<span class="no-plate">—</span>`;
+ 
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="td-id">${i+1}</td>
+        <td class="td-id">#${v.id}</td>
+        <td class="td-time">${v.time}</td>
+        <td class="td-loc">${v.location}</td>
+        <td><span class="vio-tag ${tagClass}">${icon} ${v.type}</span></td>
+        <td>${plateHtml}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+ 
+  // Show results
+  setTimeout(() => {
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('results-section').style.display  = 'block';
+    showToast(`Phân tích hoàn tất — phát hiện ${violations.length} vi phạm`);
+  }, 600);
+}
+ 
+/* ── Step pill helpers ───────────────────────────── */
+function stepActive(id) {
+  const el = document.getElementById(id);
+  if (el && !el.classList.contains('done')) el.classList.add('active');
+}
+function stepDone(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.remove('active'); el.classList.add('done'); }
+}
+ 
+/* ── Modal ───────────────────────────────────────── */
+function openModal(b64) {
+  document.getElementById('modal-img').src = 'data:image/jpeg;base64,' + b64;
+  document.getElementById('img-modal').classList.add('show');
+}
+function closeModal() { document.getElementById('img-modal').classList.remove('show'); }
+ 
+/* ── Toast ───────────────────────────────────────── */
+function showToast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
